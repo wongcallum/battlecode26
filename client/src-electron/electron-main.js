@@ -5,11 +5,12 @@ const path = require('path')
 const fs = require('fs')
 const child_process = require('child_process')
 
-// Sort of annoying thing we have to do, but basically since local builds output the
-// module to the build folder, we can use the generated .js to load that way. However,
-// in packaged builds, we need copy the module with a generic name somewhere else (bc
-// issues with universal mac builds), so we have to load it directly
-const whereIsIt = isDev ? require('where-is-it/build') : require('where-is-it/where-is-it.node')
+// The Java and Python toolchains are provided by Nix (see flake.nix) and passed in
+// through the environment, so we no longer probe the filesystem with the native
+// `where-is-it` module. `getJavas`/`getPythons` below read these env vars:
+//   BC_JAVA_HOME  - JDK home (used as JAVA_HOME for the gradle runner)
+//   BC_PYTHON     - Python interpreter executable
+//   BC_JAVA_LABEL / BC_PYTHON_LABEL - human-readable names shown in the dropdown
 
 let mainWindow
 
@@ -76,10 +77,6 @@ function killAllProcesses() {
 const WINDOWS = process.platform === 'win32'
 const GRADLE_WRAPPER = WINDOWS ? 'gradlew.bat' : 'gradlew'
 
-// TODO: since we are already importing rust for whereIsIt, we could honestly
-// wrap this whole API in rust and use it directly rather than having to maintain
-// this
-
 ipcMain.handle('electronAPI', async (event, operation, ...args) => {
     try {
         switch (operation) {
@@ -91,40 +88,29 @@ ipcMain.handle('electronAPI', async (event, operation, ...args) => {
                 return result.canceled ? undefined : result.filePaths[0]
             }
             case 'getRootPath':
-                return app.getAppPath()
+                // Starting point for scaffold auto-detection. When packaged normally the
+                // app lives inside the scaffold, but under Nix it lives in the read-only
+                // store, so BC_SCAFFOLD (set by the launcher to the working directory)
+                // points the runner at the user's project instead.
+                return process.env.BC_SCAFFOLD || app.getAppPath()
             case 'getJavas': {
+                // Returned as flat [display, path, ...] pairs. 'Auto' is the default
+                // selection; here it points at the Nix-provided JDK home.
                 const output = []
-                try {
-                    const jvms = ['21', '23'].flatMap((v) => whereIsIt.nodeFindJava(null, null, v))
-
-                    // Add 'auto' option
-                    output.push('Auto')
-                    if (jvms.length === 0) {
-                        output.push('')
-                    } else {
-                        output.push(jvms[0].path)
-                    }
-
-                    for (const jvm of jvms) {
-                        output.push(`${jvm.version} (${jvm.architecture})`)
-                        output.push(jvm.path)
-                    }
-                } catch {}
+                const home = process.env.BC_JAVA_HOME
+                if (home) {
+                    const label = process.env.BC_JAVA_LABEL || 'Java (Nix)'
+                    output.push('Auto', home, label, home)
+                }
                 return output
             }
             case 'getPythons': {
                 const output = []
-                try {
-                    const pythons = whereIsIt.nodeFindPython(3, 12, null, null, null, null, null)
-
-                    for (const py of pythons) {
-                        const path = py.executable
-                        const display = py.formattedName ?? path
-                        const version = py.version ?? 'Unknown'
-                        output.push(`${display} (${version})`)
-                        output.push(path)
-                    }
-                } catch {}
+                const exe = process.env.BC_PYTHON
+                if (exe) {
+                    const label = process.env.BC_PYTHON_LABEL || 'Python (Nix)'
+                    output.push('Auto', exe, label, exe)
+                }
                 return output
             }
             case 'exportMap': {
@@ -173,7 +159,10 @@ ipcMain.handle('electronAPI', async (event, operation, ...args) => {
                 if (lang === 'Java') {
                     wrapperPath = path.join(scaffoldPath, GRADLE_WRAPPER)
                     if (langPath) {
-                        options.env = { JAVA_HOME: langPath }
+                        // Keep the inherited environment (PATH, etc.) so the gradle
+                        // wrapper can find the shell utilities it needs; only override
+                        // JAVA_HOME to point at the selected JDK.
+                        options.env = { ...process.env, JAVA_HOME: langPath }
                     }
                 } else if (lang === 'Python') {
                     if (langPath) {

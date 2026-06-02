@@ -345,8 +345,11 @@ async function isValidScaffoldDir(path: string, nativeAPI: NativeAPI): Promise<S
 }
 
 async function findDefaultScaffoldPath(nativeAPI: NativeAPI): Promise<string | undefined> {
+    // Use the previously chosen scaffold, but only if it still exists — otherwise a
+    // moved/deleted directory (e.g. a stale path from an earlier session) would
+    // permanently break map/bot discovery.
     const localPath = localStorage.getItem('scaffoldPath')
-    if (localPath) return localPath
+    if (localPath && (await isValidScaffoldDir(localPath, nativeAPI))) return localPath
 
     let appPath = await nativeAPI.getRootPath()
 

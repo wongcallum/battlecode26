@@ -14,6 +14,11 @@ module.exports = (env) => {
         devtool: development ? 'source-map' : undefined,
         resolve: {
             extensions: ['.tsx', '.ts', '.js'],
+            // The `battlecode-schema` package is linked via `file:../schema`. Keeping
+            // symlink resolution off means modules it imports (e.g. `flatbuffers`)
+            // resolve against the client's own node_modules rather than the schema's
+            // real location outside this directory.
+            symlinks: false,
             fallback: {
                 assert: require.resolve('assert/')
             }
@@ -23,7 +28,11 @@ module.exports = (env) => {
                 {
                     test: /\.ts(x?)$/,
                     exclude: [/node_modules/, /src-tauri/, /packaged-client/],
-                    loader: 'ts-loader'
+                    loader: 'ts-loader',
+                    // Transpile without full type-checking: the bundle only needs the
+                    // emitted JS, and this keeps the build from breaking on TypeScript
+                    // version drift (e.g. the typed-array generics added in TS 5.7).
+                    options: { transpileOnly: true }
                 },
                 {
                     test: /\.css$/,

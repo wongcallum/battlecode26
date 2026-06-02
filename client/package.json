@@ -14,10 +14,9 @@
         "tauri-watch": "tauri dev",
         "tauri-pack": "cross-env CI=true tauri build",
         "tauri-build": "npm run build && npm run tauri-pack",
-        "electron-compile-modules": "cd node_modules/where-is-it && npm i && npm run build",
-        "electron-watch": "concurrently --kill-others \"npm run watch\" \"npm run electron-compile-modules && wait-on http://localhost:3000 && electron .\"",
+        "electron-watch": "concurrently --kill-others \"npm run watch\" \"wait-on http://localhost:3000 && electron .\"",
         "electron-pack": "cross-env USE_HARD_LINKS=false CSC_IDENTITY_AUTO_DISCOVERY=false NODE_ENV=production electron-builder build --publish never",
-        "electron-build": "npm run build && npm run electron-compile-modules && npm run electron-pack"
+        "electron-build": "npm run build && npm run electron-pack"
     },
     "build": {
         "asar": false,
@@ -105,17 +104,7 @@
             "node_modules/iconv-lite/**/*",
             "node_modules/safer-buffer/**/*"
         ],
-        "includeSubNodeModules": false,
-        "extraResources": [
-            {
-                "from": "node_modules/where-is-it/build/where-is-it.${platform}-${arch}.node",
-                "to": "app/node_modules/where-is-it/where-is-it.node"
-            },
-            {
-                "from": "node_modules/where-is-it/build/where-is-it.${env.ELECTRON_MODULE_NAME}",
-                "to": "app/node_modules/where-is-it/where-is-it.node"
-            }
-        ]
+        "includeSubNodeModules": false
     },
     "repository": {
         "type": "git",
@@ -134,6 +123,7 @@
         "child_process": "^1.0.2",
         "electron-fetch": "^1.9.1",
         "electron-is-dev": "^2.0.0",
+        "flatbuffers": "24.3.25",
         "fs": "^0.0.1-security",
         "pako": "^2.1.0",
         "path": "^0.12.7",
@@ -147,11 +137,9 @@
         "react-router-dom": "^6.13.0",
         "react-window": "^1.8.10",
         "react-zoomable-ui": "^0.11.0",
-        "speedscope": "^1.21.0",
-        "where-is-it": "github:TheApplePieGod/where-is-it"
+        "speedscope": "^1.21.0"
     },
     "devDependencies": {
-        "@tauri-apps/cli": "2.9.4",
         "@types/pako": "^2.0.0",
         "@types/react": "^18.2.5",
         "@types/react-color": "^3.0.12",
